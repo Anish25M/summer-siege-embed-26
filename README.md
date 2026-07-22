@@ -109,11 +109,21 @@ This evaluates the selected design at 2 ksps and runs the required sweep from 0.
 study = delta_sigma_adc(500:250:2000, false);
 ```
 
+Input noise is enabled by default for the requirements-budgeted result. The
+same sweep can be run without added analog input noise for the ideal
+architecture comparison:
+
+```matlab
+budgeted = delta_sigma_adc(500:250:2000, false, true);
+ideal = delta_sigma_adc(500:250:2000, false, false);
+```
+
 ## Selected design
 
 | Item | Selected value |
 | --- | --- |
 | Modulator | Discrete-time MASH 2-1, two 1-bit stages |
+| MASH interstage gain | 0.25 |
 | Modulator clock | 256 kHz |
 | Input | 125 Hz coherent sine, -6 dBFS |
 | Nominal ADC output | Signed 20-bit |
@@ -123,7 +133,7 @@ study = delta_sigma_adc(500:250:2000, false);
 | FIR coefficients | Fixed 2 ksps design, signed 24-bit Q1.23 |
 | Input-noise density | 69.745 nFS/sqrt(Hz) |
 
-The physical input-noise density is derived from the 19-ENOB full-scale noise budget at the minimum 250 Hz signal bandwidth. This keeps the ideal behavioral simulation within the nominal 20-bit converter model.
+The input-noise density is derived from the 19-ENOB full-scale noise budget at the minimum 250 Hz signal bandwidth. It is an aggregate requirements-level allocation, not measured or transistor-level hardware noise. Noise-disabled simulations isolate the intrinsic modulator and decimator behavior.
 
 The FIR is designed once for the most demanding 2 ksps Nyquist-rate case and reused at every sweep point. The signal frequency, amplitude, noise policy, output quantization, modulator settings, and FIR coefficients are therefore unchanged throughout the comparison.
 
@@ -163,21 +173,21 @@ The vector package also contains:
 
 ## Required Nyquist-rate tradeoff
 
-Measured ENOB for the same input and method at every rate:
+Measured ENOB with the requirements-derived input-noise budget enabled:
 
 | Nyquist rate (samples/s) | First order | Second order | Third-order single loop | MASH 2-1 |
 | ---: | ---: | ---: | ---: | ---: |
-| 500 | 11.521 | 17.725 | 18.056 | 18.052 |
-| 750 | 10.865 | 16.831 | 17.614 | 17.698 |
-| 1000 | 9.868 | 16.109 | 17.315 | 17.472 |
-| 1250 | 9.702 | 15.324 | 16.781 | 17.306 |
-| 1500 | 9.353 | 14.792 | 16.256 | 17.179 |
-| 1750 | 9.078 | 14.246 | 15.404 | 17.072 |
-| 2000 | 8.676 | 13.817 | 14.949 | 16.963 |
+| 500 | 11.521 | 17.725 | 18.056 | 18.062 |
+| 750 | 10.865 | 16.831 | 17.614 | 17.708 |
+| 1000 | 9.868 | 16.109 | 17.315 | 17.481 |
+| 1250 | 9.702 | 15.324 | 16.781 | 17.303 |
+| 1500 | 9.353 | 14.792 | 16.256 | 17.173 |
+| 1750 | 9.078 | 14.246 | 15.404 | 17.049 |
+| 2000 | 8.676 | 13.817 | 14.949 | 16.913 |
 
-MASH 2-1 is selected because it is the only tested architecture that remains within the required 16-19 ENOB range at every requested Nyquist rate. Its ENOB also decreases monotonically as bandwidth increases. At 500 samples/s, MASH and the conventional third-order loop are effectively tied; MASH has the stronger result over the complete range.
+MASH 2-1 is selected because it is the only tested architecture that remains within the required 16-19 ENOB range at every requested Nyquist rate. Its ENOB also decreases monotonically as bandwidth increases. The noise-disabled comparison independently confirms the selection: MASH wins all seven rates by 0.571 to 3.379 bits.
 
-The selected 2 ksps result is 16.963 ENOB. The floating-point filter using quantized coefficients and the integer bit-true reference produce identical signed 20-bit output codes for this test.
+The selected 2 ksps budgeted-noise result is 16.913 ENOB. The floating-point filter using quantized coefficients and the integer bit-true reference produce identical signed 20-bit output codes for this test.
 
 ## Supporting design checks
 

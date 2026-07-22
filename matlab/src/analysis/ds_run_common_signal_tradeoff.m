@@ -1,5 +1,5 @@
 function study = ds_run_common_signal_tradeoff( ...
-    nyquist_rates_Hz, input_level_dBFS, make_plot)
+    nyquist_rates_Hz, input_level_dBFS, make_plot, enable_input_noise)
 %DS_RUN_COMMON_SIGNAL_TRADEOFF Compare architectures with one test policy.
 
 if nargin < 1
@@ -10,6 +10,9 @@ if nargin < 2
 end
 if nargin < 3
     make_plot = true;
+end
+if nargin < 4
+    enable_input_noise = true;
 end
 
 nyquist_rates_Hz = nyquist_rates_Hz(:);
@@ -24,6 +27,7 @@ osr = zeros(numel(nyquist_rates_Hz),1);
 
 for rate_index = 1:numel(nyquist_rates_Hz)
     cfg = ds_default_config(nyquist_rates_Hz(rate_index));
+    cfg.analog.enable_input_noise = logical(enable_input_noise);
     cfg.signal.input_level_dBFS = input_level_dBFS;
     cfg.signal.amplitude = cfg.signal.full_scale_peak * ...
         10^(input_level_dBFS/20);
@@ -45,6 +49,7 @@ end
 
 study.nyquist_rates_Hz = nyquist_rates_Hz;
 study.input_level_dBFS = input_level_dBFS;
+study.input_noise_enabled = logical(enable_input_noise);
 study.architecture_names = architecture_names;
 study.architecture_labels = architecture_labels;
 study.measured_enob = measured_enob;
@@ -79,8 +84,12 @@ if make_plot
     grid on;
     xlabel('Nyquist rate (ksps)');
     ylabel('Measured ENOB (bits)');
-    title(sprintf('Common %.1f dBFS, %.1f Hz coherent tone', ...
-        input_level_dBFS, tone_Hz(1)));
+    noise_label = "noise disabled";
+    if enable_input_noise
+        noise_label = "budgeted noise enabled";
+    end
+    title(sprintf('Common %.1f dBFS, %.1f Hz tone; %s', ...
+        input_level_dBFS, tone_Hz(1), noise_label));
     legend(architecture_labels,'Location','best');
     drawnow;
 end

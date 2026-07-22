@@ -38,7 +38,7 @@ cfg.analog.input_noise_density_FS_per_sqrt_Hz = ...
 cfg.modulator.quantizer_step = 2;
 cfg.modulator.dither_amplitude = 0.2;
 cfg.modulator.random_seed = 1;
-cfg.modulator.mash_interstage_gain = 0.5;
+cfg.modulator.mash_interstage_gain = 0.25;
 % This pole limits the single-loop third-order NTF peak to about 1.49.
 cfg.modulator.third_order_ntf_pole = 0.75;
 
