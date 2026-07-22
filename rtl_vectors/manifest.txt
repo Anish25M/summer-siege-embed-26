@@ -1,0 +1,44 @@
+Delta-sigma ADC RTL test-vector manifest
+All .mem files contain one sample per line.
+Raw MASH stages use 0/1 logic mapping: bipolar -1 -> 0, bipolar +1 -> 1.
+Hexadecimal files use fixed-width signed two's-complement values.
+
+modulator_clock_Hz=256000
+nyquist_rate_Hz=2000
+input_sample_count=327680
+mash_stage_stream_width_bits=1
+mash_combined_width_bits=5
+mash_combined_minimum=-9
+mash_combined_maximum=9
+mash_interstage_gain=0.5
+cic_order=4
+cic_decimation=16
+cic_width_bits=21
+fir_order=63
+fir_tap_count=64
+fir_decimation=4
+coefficient_width_bits=24
+coefficient_fractional_bits=23
+fir_accumulator_width_bits=51
+output_width_bits=20
+output_sample_count=5120
+input_noise_seed=17
+modulator_dither_seed=1
+first_cic_output_input_index_one_based=1
+first_fir_output_cic_index_one_based=1
+
+Files:
+mash_stage1_bits.mem: raw MASH stage-1 quantizer bits
+mash_stage2_bits.mem: raw MASH stage-2 quantizer bits
+mash_combined_*: digitally cancelled multilevel stream presented to the CIC
+For zero-based n >= 2, combined[n] = stage1_bipolar[n] - (stage2_bipolar[n] - 2*stage2_bipolar[n-1] + stage2_bipolar[n-2])/mash_interstage_gain.
+The first two combined samples are zero, matching the MATLAB model initialization.
+fir_coefficients_*: tap 0 first, signed 24-bit Q1.23
+cic_output_*: golden CIC output before the FIR
+fir_output_*: golden decimated FIR accumulator before normalization
+output_codes_20bit_*: golden rounded and saturated ADC output codes
+
+Timing:
+The CIC accepts mash_combined sample 1 immediately after reset and emits its first output for that sample.
+The FIR accepts CIC output 1 immediately after reset and emits its first decimated output for that sample.
+Initial transient samples are intentionally retained for cycle-accurate comparison.

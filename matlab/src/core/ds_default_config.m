@@ -49,10 +49,10 @@ cfg.filter.design_bandwidth_Hz = cfg.filter.design_nyquist_rate_Hz/2;
 cfg.filter.A.decimation = 64;
 cfg.filter.B.cic_decimation = 16;
 cfg.filter.B.fir_decimation = 4;
-cfg.filter.B.initial_fir_order = 64;
+cfg.filter.B.initial_fir_order = 63;
 cfg.filter.B.use_kaiser_estimated_order = false;
 cfg.filter.B.maximum_design_iterations = 12;
-cfg.filter.B.coefficient_bits = 23;
+cfg.filter.B.coefficient_bits = 24;
 
 cfg.output.word_length_bits = cfg.spec.nominal_resolution_bits;
 
