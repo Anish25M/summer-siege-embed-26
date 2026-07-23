@@ -1,206 +1,206 @@
-# 20-Bit Delta-Sigma ADC MATLAB Model
+# 20-Bit Delta-Sigma ADC Study and RTL Decimation Filter
 
-This repository contains the MATLAB model and simulation study for a nominal 20-bit delta-sigma ADC. It covers the required modulator comparison, the 0.5-2 ksps Nyquist-rate versus ENOB study, and a bit-true MATLAB reference for the selected decimation filter.
+This project studies, simulates, and implements the digital filtering path for a
+20-bit delta-sigma ADC. The work compares delta-sigma modulator choices across
+Nyquist sampling rates from 0.5 ksps to 2 ksps, targets 16-19 ENOB, and provides
+a Verilog RTL implementation of the selected digital decimation filter.
 
-HDL is intentionally not included. It can later be added as an independent `rtl/` module without mixing MATLAB and Verilog sources.
+The final selected signal chain is:
 
-## Repository layout
+```text
+Analog input model
+  -> discrete-time MASH 2-1 delta-sigma modulator
+  -> signed 6-bit digitally-cancelled modulator stream
+  -> fourth-order CIC decimator by 16
+  -> 64-tap FIR decimator by 4
+  -> signed 20-bit ADC output code
+```
+
+The MATLAB model is the system-level and bit-true reference. The Verilog module
+implements the CIC/FIR decimation filter and is checked against MATLAB-generated
+golden vectors.
+
+## Project Aims
+
+- Model and simulate a 20-bit delta-sigma ADC.
+- Study the trade-off between Nyquist sampling rate and ENOB using a common
+  signal set from 0.5 ksps to 2 ksps.
+- Compare candidate delta-sigma modulator and decimation-filter choices.
+- Design a digital decimation filter equivalent to the MATLAB model.
+- Implement and simulate the decimation filter at RTL using Verilog.
+
+## Repository Layout
 
 ```text
 matlab/
-  delta_sigma_adc.m                 Main simulation and study entry point
-  delta_sigma_adc_setup.m           Adds all source subfolders to the path
-  export_rtl_test_vectors.m         Generates Verilog stimulus and golden files
+  delta_sigma_adc.m                 Main MATLAB entry point for simulations
+  delta_sigma_adc_setup.m           Adds MATLAB source folders to the path
+  export_rtl_test_vectors.m         Writes Verilog stimulus, coefficients, and golden outputs
+  plot_matlab_verilog_outputs.m     Compares Verilog output against MATLAB reference
   src/
-    core/
-      ds_default_config.m           Central specifications and design settings
-      ds_generate_signal.m          Coherent sine and analog input-noise source
-      ds_run_modulators.m           Runs all candidate modulator architectures
-      ds_run_mash_2_1.m             Selected two-stage MASH behavioral model
-      ds_run_third_order_single_loop.m
-                                     Third-order comparison model
-      ds_measure_performance.m      Collects SINAD, ENOB, and filter metrics
-      ds_coherent_inband_performance.m
-                                     Coherent FFT-based SINAD/ENOB calculation
-    filters/
-      ds_design_filters.m           CIC/FIR design and coefficient quantization
-      ds_filter_and_decimate.m      Floating-point architecture comparison path
-      ds_filter_and_decimate_integer.m
-                                     Bit-true CIC16/FIR4 golden reference
-      ds_quantize_output.m          Signed 20-bit rounding and saturation
-    analysis/
-      ds_plot_results.m             Spectra and filter-response figures
-      ds_print_summary.m            Console report and coefficient information
-      ds_run_common_signal_tradeoff.m
-                                     Required 0.5-2 ksps ENOB sweep
-      ds_run_decimation_split_sweep.m
-                                     Compares CIC/FIR decimation-factor splits
-      ds_run_input_level_sweep.m    Input-level versus ENOB study
-      ds_run_third_order_pole_sweep.m
-                                     Third-order stability/design study
+    core/                           Configuration, signal generation, modulators, metrics
+    filters/                        CIC/FIR design, integer filter model, output quantization
+    analysis/                       ENOB sweeps, plots, summaries, design studies
 
-rtl_vectors/                        Generated RTL stimulus and golden outputs
-README.md                           Project instructions and recorded results
+rtl_vectors/
+  coeffs.hex                        FIR coefficient ROM contents for Verilog
+  mash_combined_twos_complement.mem Signed 6-bit RTL input stimulus
+  output_codes_20bit_twos_complement.mem
+                                    Golden signed 20-bit MATLAB output codes
+
+verilog/
+  digital_filter_5bit.v             Verilog CIC + FIR decimation filter
+  testbench.v                       Testbench using MATLAB-generated vectors
+
+README.md                           Project overview and run instructions
 ```
 
-### How the MATLAB directory is organized
+Generated simulator files such as `sim.out`, `dump.vcd`, `sim_console.log`, and
+`verilog_output_codes.csv` are intentionally not kept in the repository. They
+are recreated when the Verilog simulation is run.
 
-The three files directly inside `matlab/` are the user-facing entry points:
+## MATLAB Model
 
-- Start with `delta_sigma_adc.m` to reproduce the selected 2 ksps simulation
-  or the complete Nyquist-rate tradeoff.
-- `delta_sigma_adc_setup.m` only configures the MATLAB search path. It does
-  not run a simulation or modify any design values.
-- Use `export_rtl_test_vectors.m` when preparing files for the Verilog
-  decimator testbench. It reruns the deterministic selected design before
-  writing the vectors, so the stimulus and golden outputs remain matched.
-
-Files under `matlab/src/` are implementation functions called by those entry
-points. Normally, users should change design requirements in
-`core/ds_default_config.m` rather than editing values independently in several
-functions. The folders have separate responsibilities:
-
-- `core/` builds the input, runs the delta-sigma modulators, and measures
-  system performance.
-- `filters/` designs and applies the decimation filters. The floating-point
-  path is used for architecture studies; the integer path defines the exact
-  signed widths, wrapping, scaling, rounding, and saturation expected from
-  RTL.
-- `analysis/` contains reporting, plots, and optional parameter sweeps. These
-  functions analyze the design but do not define the selected configuration.
-
-### MATLAB data flow
-
-For one simulation point, the functions execute in this order:
-
-1. `ds_default_config` creates the common specifications and selected design.
-2. `ds_generate_signal` creates the coherent sine wave and seeded input noise.
-3. `ds_run_modulators` produces candidate high-rate modulator streams. The
-   selected MASH model also retains its two raw one-bit stage streams.
-4. `ds_design_filters` creates the CIC response and the 64 signed 24-bit
-   Q1.23 FIR coefficients.
-5. `ds_filter_and_decimate` evaluates all architectures, while
-   `ds_filter_and_decimate_integer` produces the bit-true selected result.
-6. `ds_measure_performance` calculates SINAD and ENOB; the plot and summary
-   functions then present those results.
-
-The returned `results` structure contains performance values, coefficient
-tables, and the integer-filter result. Raw MASH streams are intentionally not
-stored in `results` because they are large; the RTL exporter regenerates and
-writes them directly. Generated files belong in the top-level `rtl_vectors/`
-directory and should not be confused with MATLAB source code.
-
-## Requirements
-
-- MATLAB R2025a or later
-- Signal Processing Toolbox
-
-## Run the submission study
-
-Make the `matlab` directory the current MATLAB folder, then run:
+Run MATLAB from the `matlab/` folder.
 
 ```matlab
 results = delta_sigma_adc;
 ```
 
-This evaluates the selected design at 2 ksps and runs the required sweep from 0.5 to 2 ksps. To run the sweep without plots:
+With no arguments, `delta_sigma_adc` runs the final 2 ksps design and the
+required 0.5-2 ksps ENOB sweep. The main steps are:
+
+1. `ds_default_config` defines ADC, modulator, signal, and decimator settings.
+2. `ds_generate_signal` creates the coherent input sine wave and optional input
+   noise.
+3. `ds_run_modulators` evaluates candidate delta-sigma modulators.
+4. `ds_design_filters` builds the CIC/FIR decimation filter coefficients.
+5. `ds_filter_and_decimate` runs the floating-point reference filter path.
+6. `ds_filter_and_decimate_integer` runs the bit-true integer reference used for
+   RTL comparison.
+7. `ds_measure_performance` computes SINAD and ENOB.
+
+To run only the required rate sweep without plots:
 
 ```matlab
 study = delta_sigma_adc(500:250:2000, false);
 ```
 
-Input noise is enabled by default for the requirements-budgeted result. The
-same sweep can be run without added analog input noise for the ideal
-architecture comparison:
+To compare the noise-budgeted and ideal cases:
 
 ```matlab
 budgeted = delta_sigma_adc(500:250:2000, false, true);
 ideal = delta_sigma_adc(500:250:2000, false, false);
 ```
 
-## Selected design
+## Selected Design
 
-| Item | Selected value |
+| Item | Value |
 | --- | --- |
-| Modulator | Discrete-time MASH 2-1, two 1-bit stages |
+| ADC target resolution | 20-bit signed output |
+| Modulator | Discrete-time MASH 2-1 |
+| Modulator stages | Two 1-bit stages |
 | MASH interstage gain | 0.25 |
 | Modulator clock | 256 kHz |
-| Input | 125 Hz coherent sine, -6 dBFS |
-| Nominal ADC output | Signed 20-bit |
-| Decimator | Fourth-order CIC by 16, then 64-tap FIR by 4 |
-| Total decimation | 64 |
-| Output sample rate | 4 ksps |
-| FIR coefficients | Fixed 2 ksps design, signed 24-bit Q1.23 |
-| Input-noise density | 69.745 nFS/sqrt(Hz) |
+| Input tone | 125 Hz coherent sine |
+| Input level | -6 dBFS |
+| Decimator | CIC by 16 followed by FIR by 4 |
+| CIC order | 4 |
+| FIR length | 64 taps |
+| Output sample rate | 4 ksps for the 2 ksps Nyquist case |
+| FIR coefficient format | Signed 24-bit Q1.23 |
 
-The input-noise density is derived from the 19-ENOB full-scale noise budget at the minimum 250 Hz signal bandwidth. It is an aggregate requirements-level allocation, not measured or transistor-level hardware noise. Noise-disabled simulations isolate the intrinsic modulator and decimator behavior.
+The MASH 2-1 architecture was selected because it stayed within the target
+16-19 ENOB range over the required Nyquist-rate sweep, while also matching the
+fixed digital filter structure used for RTL implementation.
 
-The FIR is designed once for the most demanding 2 ksps Nyquist-rate case and reused at every sweep point. The signal frequency, amplitude, noise policy, output quantization, modulator settings, and FIR coefficients are therefore unchanged throughout the comparison.
+## RTL Vector Export
 
-## Export RTL test vectors
-
-Run the following after making `matlab/` the current MATLAB folder:
+The Verilog simulation uses deterministic vectors exported from MATLAB.
 
 ```matlab
 manifest = export_rtl_test_vectors;
 ```
 
-This creates `rtl_vectors/` at the repository root. For a Verilog decimation
-filter, the input stimulus is
-`mash_combined_twos_complement.mem`: the digitally cancelled MASH 2-1 output,
-represented as signed 5-bit two's-complement samples at 256 kHz. It contains
-327,680 samples, one hexadecimal sample per line, with values from -9 to +9.
-The decimator must therefore have a signed 5-bit input when digital MASH
-cancellation is performed before the filter.
+This writes the files in `rtl_vectors/`:
 
-The files `mash_stage1_bits.mem` and `mash_stage2_bits.mem` are the two raw
-one-bit MASH quantizer streams, using the mapping -1 to logic 0 and +1 to
-logic 1. They are provided for testing the MASH cancellation logic and must
-not be connected individually to the CIC. The combined 5-bit stream is the
-correct direct CIC stimulus.
+- `mash_combined_twos_complement.mem`: signed 6-bit filter input samples.
+- `coeffs.hex`: 64 signed 24-bit FIR coefficients.
+- `output_codes_20bit_twos_complement.mem`: golden signed 20-bit final outputs.
 
-The vector package also contains:
+These files are kept because they are the source stimulus and reference outputs
+for the RTL testbench.
 
-- `fir_coefficients_twos_complement.mem`: 64 signed 24-bit Q1.23 FIR taps,
-  with tap 0 first.
-- `cic_output_twos_complement.mem`: golden signed 21-bit CIC results.
-- `fir_output_twos_complement.mem`: golden signed 51-bit FIR accumulator
-  results before normalization.
-- `output_codes_20bit_twos_complement.mem`: golden signed 20-bit ADC output
-  codes for final RTL comparison.
-- `manifest.txt`: exact widths, sample counts, decimation phases, seeds, and
-  the MASH digital cancellation equation.
+## Verilog RTL
 
-## Required Nyquist-rate tradeoff
+The RTL is in `verilog/digital_filter_5bit.v`. The top-level module is
+`digital_filter`, with these ports:
 
-Measured ENOB with the requirements-derived input-noise budget enabled:
-
-| Nyquist rate (samples/s) | First order | Second order | Third-order single loop | MASH 2-1 |
-| ---: | ---: | ---: | ---: | ---: |
-| 500 | 11.521 | 17.725 | 18.056 | 18.062 |
-| 750 | 10.865 | 16.831 | 17.614 | 17.708 |
-| 1000 | 9.868 | 16.109 | 17.315 | 17.481 |
-| 1250 | 9.702 | 15.324 | 16.781 | 17.303 |
-| 1500 | 9.353 | 14.792 | 16.256 | 17.173 |
-| 1750 | 9.078 | 14.246 | 15.404 | 17.049 |
-| 2000 | 8.676 | 13.817 | 14.949 | 16.913 |
-
-MASH 2-1 is selected because it is the only tested architecture that remains within the required 16-19 ENOB range at every requested Nyquist rate. Its ENOB also decreases monotonically as bandwidth increases. The noise-disabled comparison independently confirms the selection: MASH wins all seven rates by 0.571 to 3.379 bits.
-
-The selected 2 ksps budgeted-noise result is 16.913 ENOB. The floating-point filter using quantized coefficients and the integer bit-true reference produce identical signed 20-bit output codes for this test.
-
-## Supporting design checks
-
-After running `delta_sigma_adc_setup`, the focused checks are:
-
-```matlab
-input_sweep = ds_run_input_level_sweep(2000, -12:0.5:-0.5, true);
-split_sweep = ds_run_decimation_split_sweep(2000, true);
-pole_sweep = ds_run_third_order_pole_sweep(0.5:0.05:0.9, 2000, -6, true);
+```verilog
+module digital_filter(
+    input fastclk,
+    input signed [5:0] bitstream,
+    input rst_n,
+    output signed [19:0] digital_out,
+    output data_valid,
+    output overflow
+);
 ```
 
-These scripts support the MASH selection, the 16-by-4 decimation split, and the stable third-order comparison. They do not change the fixed configuration used by the required rate sweep.
+Internally, the filter contains:
 
-## Future RTL interface
+- `CIC_filter`: four integrator stages, decimation by 16, and four comb stages.
+- `FIR_filter`: 64-tap multiply-accumulate FIR stage with decimation by 4.
+- Output scaling, rounding, and saturation to signed 20-bit ADC codes.
 
-The MATLAB bit-true decimator is the golden reference for a future independent HDL implementation. The HDL module should reuse the fixed FIR coefficient table, signed widths, rounding, and saturation behavior reported by the MATLAB result structure. RTL source and its testbench can be placed under a future top-level `rtl/` directory.
+The testbench in `verilog/testbench.v` reads
+`../rtl_vectors/mash_combined_twos_complement.mem`, applies the samples at the
+256 kHz modulator clock rate, and prints valid 20-bit output samples.
+
+## Run RTL Simulation
+
+From the `verilog/` folder:
+
+```powershell
+iverilog -g2012 -o sim.out digital_filter_5bit.v testbench.v
+vvp sim.out
+```
+
+The simulation may generate:
+
+- `sim.out`: compiled Icarus Verilog simulation executable.
+- `dump.vcd`: waveform dump for GTKWave or another waveform viewer.
+- console output containing the produced output codes.
+
+If the console output is redirected to `sim_console.log` or converted into
+`verilog_output_codes.csv`, those files are generated analysis artifacts and can
+be deleted after comparison.
+
+## MATLAB-Verilog Comparison
+
+After running the Verilog testbench and saving the RTL output codes, run:
+
+```matlab
+cd matlab
+metrics = plot_matlab_verilog_outputs;
+```
+
+The script aligns the MATLAB and Verilog output sequences, estimates latency,
+computes error metrics, and can create a comparison plot. The expected result is
+that the Verilog decimation output matches the MATLAB bit-true reference after
+pipeline latency alignment.
+
+## Requirements
+
+- MATLAB R2025a or compatible version
+- Signal Processing Toolbox
+- Icarus Verilog for RTL simulation
+- Optional: GTKWave for viewing `dump.vcd`
+
+## Notes
+
+This repository is organized as a finished project handoff. MATLAB files define
+the reference model and design studies, `rtl_vectors/` contains the reusable
+test vectors, and `verilog/` contains the RTL implementation plus testbench.
+Generated logs, waveforms, compiled simulator outputs, and temporary comparison
+exports are not part of the permanent source.
